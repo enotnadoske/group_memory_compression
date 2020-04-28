@@ -1,0 +1,2 @@
+g++ course3.cpp -lfluid_msg -g
+
