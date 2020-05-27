@@ -7,8 +7,7 @@
 
 using namespace fluid_msg;
 
-#define MIN_INTERSECTION_LEN 64
-#define ACTION_NUMBER
+#define MIN_INTERSECTION_LEN 32
 
 template<typename T>
 std::string toBinary(const T& t)
@@ -105,9 +104,6 @@ public:
 	bucket_comparisable(const bucket_comparisable& r ):buc(r.buc),existing_actions(r.existing_actions),visualize(r.visualize){
 
 	}
-	// inline bool operator==(bucket_comparisable& r){
-	// 	return ((this->existing_actions == r.existing_actions)&&(this->buc == r.buc));
-	// }
 	inline bucket_comparisable& operator=( const bucket_comparisable& r){
 		this->existing_actions = r.existing_actions;
 		this->buc = r.buc;
@@ -130,7 +126,6 @@ bool operator==(const bucket_comparisable& a,const  bucket_comparisable& b){
 
 bucket_comparisable create_bucket_link(uint group_id){
 	of13::Bucket b1;
-    //b1.add_action(new of13::OutputAction(of13::OFPP_IN_PORT, 0));
     b1.add_action(new of13::GroupAction(group_id));
     bucket_comparisable a(b1);
     a.visualize = std::to_string(group_id);
@@ -146,14 +141,11 @@ struct cmp {
 			return false;
 		}
 		if ((a).existing_actions == b.existing_actions){
-			//std::cout << "here" << std::endl;
 			auto actSet = (a.buc.get_actions());
 			std::set<Action*, comp_action_set_order> actions = actSet.action_set();
 			auto actSet2 = b.buc.get_actions();
 			std::set<Action*, comp_action_set_order> actions2 = actSet2.action_set();
 			auto it1 = actions.begin();
-		    //std::cout << (*it1)->type() << "!!!!" << std::endl;
-
 			auto it2 = actions2.begin();
 			for (;it1 != actions.end();){
 				switch ((*it1)->type()) {
@@ -291,7 +283,6 @@ struct cmp {
 		            continue;
 		        }
 		        case (of13::OFPAT_SET_FIELD): {
-		            //todo how to work
 		            it1++;
 		            it2++;
 		            continue;
@@ -322,10 +313,7 @@ struct cmp {
 		            continue;
 		        }
 		    }
-			}
-
-
-			
+			}	
 		}
 		return false;
     }
@@ -337,7 +325,6 @@ uint get_buckets_len(std::set<bucket_comparisable,cmp>& intersection){
 	for(auto it : intersection){
 		len += it.buc.len();
 	}
-	
 	return len;
 }
 
@@ -366,14 +353,11 @@ bool same_intersections(std::set<bucket_comparisable,cmp>&l , std::set<bucket_co
 			return false;
 		}
 		if ((a).existing_actions == b.existing_actions){
-			//std::cout << "here" << std::endl;
 			auto actSet = (a.buc.get_actions());
 			std::set<Action*, comp_action_set_order> actions = actSet.action_set();
 			auto actSet2 = b.buc.get_actions();
 			std::set<Action*, comp_action_set_order> actions2 = actSet2.action_set();
 			auto it1 = actions.begin();
-		    //std::cout << (*it1)->type() << "!!!!" << std::endl;
-
 			auto it2 = actions2.begin();
 			for (;it1 != actions.end();){
 				switch ((*it1)->type()) {
@@ -599,6 +583,25 @@ void print_existing_groups(std::map<uint,std::set<bucket_comparisable,cmp>> exis
 	std::cout << "=================" << std::endl;
 
 }
+void print_intersections(std::map<uint,std::pair<uint,std::set<bucket_comparisable,cmp>>>  existing_groups){
+	std::cout << "=================" << std::endl;
+	for(auto it1 : existing_groups){
+		std::cout << it1.first << "    ";
+		for(auto it2 : it1.second.second){
+			std::cout << it2.visualize << " ";
+		}
+		std::cout << std::endl;
+	}
+	std::cout << "=================" << std::endl;
+
+}
+void print_current_group(std::set<bucket_comparisable,cmp> group){
+	std::cout <<  "-------------------" << std::endl;
+	for(auto it : group){
+		std::cout << it.visualize << " ";
+	}
+	std::cout << std::endl << "-------------------" << std::endl;
+}
 
 
 void add_group(std::map<uint,std::set<bucket_comparisable,cmp>>& existing_groups, std::set<bucket_comparisable,cmp>& new_group, uint group_id){
@@ -609,21 +612,20 @@ void add_group(std::map<uint,std::set<bucket_comparisable,cmp>>& existing_groups
 	std::set<bucket_comparisable,cmp> max;
 	uint curr_max_len;
 	std::vector <uint> max_intersection_groups;
-	//intersection len;
 	std::map<uint,std::pair<uint,std::set<bucket_comparisable,cmp>>> intersections;//отсортировать перед поиском
-	//add another cycle to work until all buckets worth to unite are united
 	uint counter = 0;
 	std::map<uint,std::vector<uint>> same_intersec_refl;
 	for(auto it : existing_groups){
 		std::set<bucket_comparisable,cmp> tmp;
 	    set_intersection(it.second.begin(),it.second.end(),new_group.begin(),new_group.end(),tmp);
-	    for(auto it2 : tmp){
-	    	std::cout << it2.visualize;
-	    }
-	    if((!tmp.empty()) && get_buckets_len(tmp) < MIN_INTERSECTION_LEN){
+	    if((!tmp.empty()) && (get_buckets_len(tmp) < MIN_INTERSECTION_LEN)){
+	    	//std::cout << "!";
 	    	continue;
 	    }
-	    //std::cout <<" "<< tmp.size()<< std::endl;
+	    if(tmp.empty()){
+	    	//std::cout << "!";
+	    	continue;
+	    }
 	    bool flag = true;
 	    for(auto it1: intersections){
 	    	if(same_intersections(it1.second.second, tmp)){
@@ -639,17 +641,28 @@ void add_group(std::map<uint,std::set<bucket_comparisable,cmp>>& existing_groups
 	    	counter++;
 	    }
 	}
-	
-
-    //evaluate
-	//while()
-	//луп, сортировка массива пересечений по длине, выбор наибольшего, очистка от выбранных бакетов групп в которых происходит выделение, линковка групп
+	if(!intersections.empty()){
+			//std::cout << "!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+			//print_intersections(intersections);
+			//std::cout << intersections.size() <<"!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+    }
 	while(intersections.size() != 0){
+		if (intersections.size() == 1){
+			if (intersections[0].second.empty()){
+				break;
+			}
+		}
+		int  tmp_new_group_id = new_group_id;
 		//print_existing_groups(existing_groups);
 		uint curr_intersection = get_max_weight_intersection(intersections,same_intersec_refl);
 		for(auto it : same_intersec_refl[curr_intersection]){
 			for(auto it1 : intersections[curr_intersection].second){
 				existing_groups[it].erase(it1);
+			}
+			if ((it >= 50000) && (existing_groups[it].empty())){
+				tmp_new_group_id = new_group_id;
+				new_group_id = it;
+
 			}
 			existing_groups[it].insert(create_bucket_link(new_group_id));
 		}
@@ -657,9 +670,7 @@ void add_group(std::map<uint,std::set<bucket_comparisable,cmp>>& existing_groups
 			new_group.erase(it);
 		}
 		new_group.insert(create_bucket_link(new_group_id));
-		existing_groups[new_group_id] = intersections[curr_intersection].second;
-		//std::cout << intersections.size();
-		
+		existing_groups[new_group_id] = intersections[curr_intersection].second;		
 		for(auto it : intersections){
 			for(auto it1 : intersections[curr_intersection].second){
 				it.second.second.erase(it1);
@@ -670,25 +681,25 @@ void add_group(std::map<uint,std::set<bucket_comparisable,cmp>>& existing_groups
 		for(auto it : intersections){
 			it.second.first = get_buckets_len(it.second.second);
 			if(it.second.first < MIN_INTERSECTION_LEN){
-				std::cout << "erase";
+				//std::cout << "erase";
 				intersections.erase(it.first);
 			}
 		}
-
-		new_group_id++;
+		if(new_group_id == tmp_new_group_id){
+		    new_group_id++;
+		}else{
+			new_group_id = tmp_new_group_id;
+		}    
 
 	}
 	existing_groups[group_id] = new_group;    
 	
 }
 
-
-//визуализация работы алгоритма
 bucket_comparisable random_bucket_generator(){
 	of13::Bucket res;
 	uint existing_actions = 0 ;
 	bool flag = false;
-	//case (of13::OFPAT_OUTPUT): {
 	if (std::rand()%2 == 0){	
 		bool flag = true;
 		existing_actions += 1;
@@ -776,7 +787,7 @@ bucket_comparisable random_bucket_generator(){
 }
 
 void random_group_generator(std::set<bucket_comparisable, cmp> & res){
-	int bucket_to_generate = (std::rand()%12)+8;//from 8 to 20 buckets will be generated for this particular group
+	int bucket_to_generate = (std::rand()%20)+20;//from 8 to 20 buckets will be generated for this particular group
 	for (auto it = 0; it < bucket_to_generate; it ++){
 		res.emplace(random_bucket_generator());
 	}
@@ -829,15 +840,21 @@ int main(int argc, const char** argv){//getbuckets, check 4 equallity, add to st
 		std::string str = cmdLineParams["-time"];
 		std::srand(time(0));
 		std::map<uint,std::set<bucket_comparisable,cmp>> existing_groups;
-
+		int native_bucket_length = 0;
+		int final_bucket_length = 0;
 	    for (auto it = 0; it < (std::atoi(str.c_str())); it++){    
 	        std::set<bucket_comparisable,cmp> tmp;
 	        random_group_generator(tmp);
+	        //print_current_group(tmp);
+	        native_bucket_length += get_buckets_len(tmp); 
 	        add_group(existing_groups,tmp,it);
 	        std::cout << it << std::endl;
-       	    print_existing_groups(existing_groups);
-
+       	    //print_existing_groups(existing_groups);
     	}    
+    	for(auto it : existing_groups){
+    		final_bucket_length += get_buckets_len(it.second);
+    	}
+    	std::cout << "native_bucket_length = " << native_bucket_length << " final_bucket_length = "<< final_bucket_length; 
     }
 }
 
